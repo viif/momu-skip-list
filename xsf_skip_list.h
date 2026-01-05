@@ -10,7 +10,6 @@
 
 namespace xsf_skip_list {
 
-#define STORE_FILE "store/dumpFile"
 std::mutex mtx;
 
 template <typename K, typename V>
@@ -59,16 +58,13 @@ void Node<K, V>::set_value(V value) {
 }
 
 template <typename K, typename V>
-class SkipList {
+class XSFSkipList {
    public:
-    SkipList(int max_level);
-    ~SkipList();
+    XSFSkipList(int max_level);
+    ~XSFSkipList();
     int insert_element(K key, V value);    // 插入元素
-    void display_list();                   // 显示跳表
     bool search_element(K key, V& value);  // 查找元素
     void delete_element(K key);            // 删除元素
-    void dump_file();                      // 持久化数据到文件
-    void load_file();                      // 从文件加载数据
     int size();                            // 获取跳表元素个数
 
    private:
@@ -79,17 +75,15 @@ class SkipList {
                                    std::string* value);  // 从字符串中获取键值对
     void clear(Node<K, V>* node);                        // 清空跳表
 
-    int max_level_;              // 层数最大值
-    int skip_list_level_;        // 跳表当前最高层数
-    Node<K, V>* header_;         // 跳表头结点
-    int element_count_;          // 跳表元素个数
-    std::ofstream file_writer_;  // 文件写入流
-    std::ifstream file_reader_;  // 文件读取流
+    int max_level_;        // 层数最大值
+    int skip_list_level_;  // 跳表当前最高层数
+    Node<K, V>* header_;   // 跳表头结点
+    int element_count_;    // 跳表元素个数
 };
 
 // 初始化跳表
 template <typename K, typename V>
-SkipList<K, V>::SkipList(int max_level)
+XSFSkipList<K, V>::XSFSkipList(int max_level)
     : max_level_(max_level), skip_list_level_(0), element_count_(0) {
     // 创建头节点，并初始化键值为默认值
     K k;
@@ -99,14 +93,7 @@ SkipList<K, V>::SkipList(int max_level)
 
 // 销毁跳表
 template <typename K, typename V>
-SkipList<K, V>::~SkipList() {
-    // 关闭文件流
-    if (file_writer_.is_open()) {
-        file_writer_.close();
-    }
-    if (file_reader_.is_open()) {
-        file_reader_.close();
-    }
+XSFSkipList<K, V>::~XSFSkipList() {
     // 递归删除跳表链条
     if (header_->forward_[0] != nullptr) {
         clear(header_->forward_[0]);
@@ -117,7 +104,7 @@ SkipList<K, V>::~SkipList() {
 
 // 获取随机层数
 template <typename K, typename V>
-int SkipList<K, V>::get_random_level() {
+int XSFSkipList<K, V>::get_random_level() {
     // 初始化层级：每个节点至少出现在第一层
     int k = 0;
     // 随机层级增加：使用 rand() % 2 实现抛硬币效果，决定是否升层
@@ -137,7 +124,7 @@ int SkipList<K, V>::get_random_level() {
  * @return 新创建的节点指针
  */
 template <typename K, typename V>
-Node<K, V>* SkipList<K, V>::create_node(K k, V v, int level) {
+Node<K, V>* XSFSkipList<K, V>::create_node(K k, V v, int level) {
     // 实例化新节点，并为其分配指定的键、值和层级
     Node<K, V>* new_node = new Node<K, V>(k, v, level);
     // 返回新节点：返回新节点指针
@@ -151,7 +138,7 @@ Node<K, V>* SkipList<K, V>::create_node(K k, V v, int level) {
  * @return 如果找到键值，返回 true；否则返回 false。
  */
 template <typename K, typename V>
-bool SkipList<K, V>::search_element(K key, V& value) {
+bool XSFSkipList<K, V>::search_element(K key, V& value) {
     // 定义一个指针 current，初始化为跳表的头节点
     Node<K, V>* current = header_;
 
@@ -185,7 +172,7 @@ bool SkipList<K, V>::search_element(K key, V& value) {
  * @return 如果元素已存在，返回 1；否则，进行更新 value 操作并返回 0。
  */
 template <typename K, typename V>
-int SkipList<K, V>::insert_element(const K key, const V value) {
+int XSFSkipList<K, V>::insert_element(const K key, const V value) {
     mtx.lock();
     // 定义一个指针 current，初始化为跳表的头节点
     Node<K, V>* current = header_;
@@ -249,7 +236,7 @@ int SkipList<K, V>::insert_element(const K key, const V value) {
  * @param key 待删除节点的 key 值
  */
 template <typename K, typename V>
-void SkipList<K, V>::delete_element(K key) {
+void XSFSkipList<K, V>::delete_element(K key) {
     mtx.lock();
     // 定义一个指针 current，初始化为跳表的头节点
     Node<K, V>* current = header_;
@@ -290,59 +277,17 @@ void SkipList<K, V>::delete_element(K key) {
     mtx.unlock();
 }
 
-// 显示跳表
-template <typename K, typename V>
-void SkipList<K, V>::display_list() {
-    // 从最上层开始向下遍历所有层
-    Node<K, V>* current;
-    for (int i = skip_list_level_; i >= 0; i--) {
-        // 获取当前层的头节点
-        current = header_->forward_[i];
-        std::cout << "Level " << i << ": ";
-        // 显示当前层的节点
-        while (current) {
-            // 打印当前节点的键和值，键值对之间用":"分隔
-            std::cout << current->get_key() << ":" << current->get_value()
-                      << " ";
-            // 移动到当前层的下一个节点
-            current = current->forward_[i];
-        }
-        // 当前层遍历结束，换行
-        std::cout << std::endl;
-    }
-}
-
-// 持久化数据到文件
-template <typename K, typename V>
-void SkipList<K, V>::dump_file() {
-    // 打开文件
-    file_writer_.open(STORE_FILE);
-    // 从头节点开始遍历
-    Node<K, V>* current = header_->forward_[0];
-    while (current) {
-        // 将键值对写入文件
-        file_writer_ << current->get_key() << ":" << current->get_value()
-                     << std::endl;
-        // 移动到下一个节点
-        current = current->forward_[0];
-    }
-    // 刷新缓冲区，确保数据完全写入
-    file_writer_.flush();
-    // 关闭文件
-    file_writer_.close();
-}
-
 // 验证字符串的合法性
 template <typename K, typename V>
-bool SkipList<K, V>::is_valid_string(const std::string& str) {
+bool XSFSkipList<K, V>::is_valid_string(const std::string& str) {
     return !str.empty() && str.find(':') != std::string::npos;
 }
 
 // 从字符串中获取键值对
 template <typename K, typename V>
-void SkipList<K, V>::get_key_value_from_string(const std::string& str,
-                                               std::string* key,
-                                               std::string* value) {
+void XSFSkipList<K, V>::get_key_value_from_string(const std::string& str,
+                                                  std::string* key,
+                                                  std::string* value) {
     if (!is_valid_string(str)) {
         return;
     }
@@ -350,31 +295,9 @@ void SkipList<K, V>::get_key_value_from_string(const std::string& str,
     *value = str.substr(str.find(':') + 1);
 }
 
-// 从文件加载数据
-template <typename K, typename V>
-void SkipList<K, V>::load_file() {
-    // 打开文件
-    file_reader_.open(STORE_FILE);
-    // 读取文件中的每一行
-    std::string line;
-    std::string key, value;
-    while (std::getline(file_reader_, line)) {
-        // 从每一行中获取键值对
-        get_key_value_from_string(line, &key, &value);
-        if (key.empty() || value.empty()) {
-            continue;
-        }
-        // 将键值对插入到跳表中
-        insert_element(std::stoi(key), std::stoi(value));
-        std::cout << "Load key: " << key << ", value: " << value << std::endl;
-    }
-    // 关闭文件
-    file_reader_.close();
-}
-
 // 清空跳表
 template <typename K, typename V>
-void SkipList<K, V>::clear(Node<K, V>* node) {
+void XSFSkipList<K, V>::clear(Node<K, V>* node) {
     if (node->forward_[0] != nullptr) {
         clear(node->forward_[0]);
     }
@@ -383,7 +306,7 @@ void SkipList<K, V>::clear(Node<K, V>* node) {
 
 // 获取跳表元素个数
 template <typename K, typename V>
-int SkipList<K, V>::size() {
+int XSFSkipList<K, V>::size() {
     return element_count_;
 }
 

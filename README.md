@@ -8,8 +8,6 @@
 - delete_element：删除数据
 - search_element：查找数据
 - size：获取跳表元素个数
-- dump_file：持久化数据到文件
-- load_file：从文件加载数据
 
 ## 性能
 
