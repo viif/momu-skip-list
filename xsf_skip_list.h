@@ -10,8 +10,6 @@
 
 namespace xsf_skip_list {
 
-std::mutex mtx;
-
 template <typename K, typename V>
 class Node {
    public:
@@ -60,7 +58,7 @@ class XSFSkipList {
     }
 
     int insert_element(K key, V value) {
-        mtx.lock();
+        std::lock_guard<std::mutex> lock(mutex_);
         // 定义一个指针 current，初始化为跳表的头节点
         Node<K, V>* current = header_;
         // 用于在各层更新指针的数组
@@ -86,7 +84,6 @@ class XSFSkipList {
             // 键已存在，更新节点的值
             current->set_value(value);
             // 返回 1，表示更新操作
-            mtx.unlock();
             return 1;
         } else {
             // 键不存在，插入节点
@@ -114,7 +111,6 @@ class XSFSkipList {
             // 增加跳表的元素计数
             element_count_++;
             // 返回 0，表示插入操作
-            mtx.unlock();
             return 0;
         }
     }
@@ -147,7 +143,7 @@ class XSFSkipList {
     }
 
     void delete_element(K key) {
-        mtx.lock();
+        std::lock_guard<std::mutex> lock(mutex_);
         // 定义一个指针 current，初始化为跳表的头节点
         Node<K, V>* current = header_;
         // 用于在各层更新指针的数组
@@ -184,7 +180,6 @@ class XSFSkipList {
             // 减少跳表的元素计数
             element_count_--;
         }
-        mtx.unlock();
     }
 
     int size() { return element_count_; }
@@ -216,10 +211,12 @@ class XSFSkipList {
         delete node;
     }
 
-    int max_level_;        // 层数最大值
+    int max_level_;
     int skip_list_level_;  // 跳表当前最高层数
-    Node<K, V>* header_;   // 跳表头结点
-    int element_count_;    // 跳表元素个数
+    Node<K, V>* header_;
+    int element_count_;
+
+    std::mutex mutex_;
 };
 
 }  // namespace xsf_skip_list
