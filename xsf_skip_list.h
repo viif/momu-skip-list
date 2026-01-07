@@ -11,7 +11,7 @@
 namespace xsf_skip_list {
 
 template <typename K, typename V>
-class Node {
+struct Node {
    public:
     Node() = default;
 
@@ -23,18 +23,10 @@ class Node {
 
     ~Node() { delete[] forward_; }
 
-    K get_key() const { return key_; }
-
-    V get_value() const { return value_; }
-
-    void set_value(V value) { value_ = value; }
-
-    Node<K, V>** forward_;
-    int node_level_;
-
-   private:
     K key_;
     V value_;
+    Node<K, V>** forward_;
+    int node_level_;
 };
 
 template <typename K, typename V>
@@ -69,7 +61,7 @@ class XSFSkipList {
         for (int i = skip_list_level_; i >= 0; i--) {
             // 寻找当前层中最接近且小于 key 的节点
             while (current->forward_[i] != nullptr &&
-                   current->forward_[i]->get_key() < key) {
+                   current->forward_[i]->key_ < key) {
                 // 移动到下一节点
                 current = current->forward_[i];
             }
@@ -80,9 +72,9 @@ class XSFSkipList {
         // 移动到最底层的下一节点，准备插入操作
         current = current->forward_[0];
         // 检查待插入的节点的键是否已存在
-        if (current != nullptr && current->get_key() == key) {
+        if (current != nullptr && current->key_ == key) {
             // 键已存在，更新节点的值
-            current->set_value(value);
+            current->value_ = value;
             // 返回 1，表示更新操作
             return 1;
         } else {
@@ -123,7 +115,7 @@ class XSFSkipList {
         for (int i = skip_list_level_; i >= 0; i--) {
             // 遍历当前层级，直到下一个节点的键值大于或等于待查找的键值
             while (current->forward_[i] != nullptr &&
-                   current->forward_[i]->get_key() < key) {
+                   current->forward_[i]->key_ < key) {
                 // 移动到当前层的下一个节点
                 current = current->forward_[i];
             }
@@ -133,9 +125,9 @@ class XSFSkipList {
 
         // 检查当前层（最底层）的下一个节点的键值是否为待查找的键值
         current = current->forward_[0];
-        if (current != nullptr && current->get_key() == key) {
+        if (current != nullptr && current->key_ == key) {
             // 如果找到匹配的键值，返回 true
-            value = current->get_value();
+            value = current->value_;
             return true;
         }
         // 如果没有找到匹配的键值，返回 false
@@ -153,7 +145,7 @@ class XSFSkipList {
         // 从最高层开始向下搜索待删除节点
         for (int i = skip_list_level_; i >= 0; i--) {
             while (current->forward_[i] != nullptr &&
-                   current->forward_[i]->get_key() < key) {
+                   current->forward_[i]->key_ < key) {
                 current = current->forward_[i];
             }
             // 记录每层待删除节点的前驱节点
@@ -161,7 +153,7 @@ class XSFSkipList {
         }
         current = current->forward_[0];
         // 确认找到了待删除的节点
-        if (current != nullptr && current->get_key() == key) {
+        if (current != nullptr && current->key_ == key) {
             // 逐层更新指针，移除节点
             for (int i = 0; i <= skip_list_level_; i++) {
                 // 如果当前层的前驱节点指向待删除节点
