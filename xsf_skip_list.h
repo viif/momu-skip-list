@@ -1,12 +1,8 @@
 #ifndef XSF_SKIP_LIST_H
 #define XSF_SKIP_LIST_H
 
-#include <cmath>
-#include <cstdlib>
-#include <cstring>
-#include <fstream>
-#include <iostream>
 #include <mutex>
+#include <random>
 
 namespace xsf_skip_list {
 
@@ -32,8 +28,12 @@ struct Node {
 template <typename K, typename V>
 class XSFSkipList {
    public:
-    XSFSkipList(int max_level)
-        : max_level_(max_level), skip_list_level_(0), element_count_(0) {
+    XSFSkipList(int max_level, unsigned int seed = std::random_device{}())
+        : max_level_(max_level),
+          skip_list_level_(0),
+          element_count_(0),
+          gen_(seed),
+          distribution_(0.5) {
         // 创建头节点，并初始化键值为默认值
         K k;
         V v;
@@ -182,7 +182,7 @@ class XSFSkipList {
         int k = 0;
         // 随机层级增加：使用 rand() % 2 实现抛硬币效果，决定是否升层
         // 层级限制：确保节点层级不超过最大值 max_level_
-        while (rand() % 2 && k < max_level_) {
+        while (distribution_(gen_) && k < max_level_) {
             k++;
         }
         // 返回层级：返回确定的层级值，决定节点插入的层
@@ -209,6 +209,8 @@ class XSFSkipList {
     int element_count_;
 
     std::mutex mutex_;
+    std::mt19937 gen_;
+    std::bernoulli_distribution distribution_;
 };
 
 }  // namespace xsf_skip_list
