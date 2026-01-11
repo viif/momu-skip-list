@@ -41,7 +41,7 @@ class SkipList {
         std::lock_guard<std::mutex> lock(mutex_);
         auto predecessors = find_predecessors(key);
         if (auto* exist = get_node_at_level_zero(predecessors[0], key)) {
-            exist->value_ = value;
+            update_existing_node(exist, value);
         } else {
             insert_new_node(key, value, predecessors);
         }
@@ -111,6 +111,10 @@ class SkipList {
     Node<K, V>* get_node_at_level_zero(Node<K, V>* pred, const K& key) {
         auto* nxt = pred->forward_[0].get();
         return (nxt && nxt->key_ == key) ? nxt : nullptr;
+    }
+
+    void update_existing_node(Node<K, V>* node, const V& value) {
+        node->value_ = value;
     }
 
     void insert_new_node(const K& key, const V& value, const PredVec& preds) {
