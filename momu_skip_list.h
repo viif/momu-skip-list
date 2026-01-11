@@ -5,7 +5,9 @@
 #include <optional>
 #include <random>
 
-namespace xsf_skip_list {
+namespace momu {
+
+namespace skip_list {
 
 template <typename K, typename V>
 struct Node {
@@ -26,9 +28,9 @@ struct Node {
 };
 
 template <typename K, typename V>
-class XSFSkipList {
+class MomuSkipList {
    public:
-    XSFSkipList(uint8_t max_level, unsigned int seed = std::random_device{}())
+    MomuSkipList(uint8_t max_level, unsigned int seed = std::random_device{}())
         : max_level_(max_level),
           skip_list_level_(0),
           element_count_(0),
@@ -40,7 +42,7 @@ class XSFSkipList {
         header_ = new Node<K, V>(k, v, max_level_);
     }
 
-    ~XSFSkipList() {
+    ~MomuSkipList() {
         // 递归删除跳表链条
         if (header_->forward_[0] != nullptr) {
             clear(header_->forward_[0]);
@@ -206,6 +208,8 @@ class XSFSkipList {
     std::bernoulli_distribution distribution_;
 };
 
-}  // namespace xsf_skip_list
+}  // namespace skip_list
+
+}  // namespace momu
 
 #endif  // XSF_SKIP_LIST_H
