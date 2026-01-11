@@ -1,12 +1,13 @@
 #ifndef MOMU_SKIP_LIST_H
 #define MOMU_SKIP_LIST_H
 
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <random>
+#include <vector>
 
 namespace momu {
-
 namespace skip_list {
 
 template <typename K, typename V>
@@ -14,17 +15,20 @@ struct Node {
    public:
     Node() = default;
 
-    Node(K key, V value, uint8_t level)
-        : key_(key), value_(value), node_level_(level) {
-        forward_ = new Node<K, V>*[level + 1]();
-    }
+    Node(const K& key, const V& value, uint8_t level)
+        : key_(key), value_(value), forward_(level + 1, nullptr) {}
 
-    ~Node() { delete[] forward_; }
+    Node(Node&&) noexcept = default;
+    Node& operator=(Node&&) noexcept = default;
 
-    K key_;
-    V value_;
-    Node<K, V>** forward_{nullptr};
-    uint8_t node_level_{0};
+    Node(const Node&) = delete;
+    Node& operator=(const Node&) = delete;
+
+    ~Node() = default;
+
+    K key_{};
+    V value_{};
+    std::vector<Node*> forward_;
 };
 
 template <typename K, typename V>
@@ -209,7 +213,6 @@ class SkipList {
 };
 
 }  // namespace skip_list
-
 }  // namespace momu
 
 #endif  // MOMU_SKIP_LIST_H
