@@ -141,9 +141,13 @@ class SkipList {
 
     uint8_t generate_random_level() {
         uint8_t lvl = 0;
-        while (distribution_(gen_) && lvl < max_level_) ++lvl;
+        while (get_half_probability() && lvl < max_level_) {
+            ++lvl;
+        }
         return lvl;
     }
+
+    bool get_half_probability() { return distribution_(gen_); }
 
     void adjust_max_level_for_insertion(uint8_t lvl, PredVec& preds) {
         if (lvl > current_max_level_) {
