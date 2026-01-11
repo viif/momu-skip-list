@@ -12,50 +12,42 @@ namespace skip_list {
 
 template <typename K, typename V>
 struct Node {
-   public:
     Node() = default;
-
     Node(const K& key, const V& value, uint8_t level)
-        : key_(key), value_(value), forward_(level + 1, nullptr) {}
+        : key_(key), value_(value), forward_(level + 1) {}
 
     Node(Node&&) noexcept = default;
     Node& operator=(Node&&) noexcept = default;
-
     Node(const Node&) = delete;
     Node& operator=(const Node&) = delete;
-
     ~Node() = default;
 
-    K key_{};
-    V value_{};
-    std::vector<Node*> forward_;
+    K key_;
+    V value_;
+    std::vector<std::shared_ptr<Node<K, V>>> forward_;
 };
 
 template <typename K, typename V>
 class SkipList {
    public:
-    SkipList(uint8_t max_level, unsigned int seed = std::random_device{}())
+    explicit SkipList(uint8_t max_level,
+                      unsigned int seed = std::random_device{}())
         : max_level_(max_level),
-          header_(create_header_node()),
+          header_(std::make_unique<Node<K, V>>(K{}, V{}, max_level_)),
           gen_(seed),
           distribution_(0.5) {}
 
-    ~SkipList() {}
-
+    ~SkipList() = default;
     SkipList(const SkipList&) = delete;
     SkipList& operator=(const SkipList&) = delete;
-
     SkipList(SkipList&&) noexcept = default;
     SkipList& operator=(SkipList&&) noexcept = default;
 
     void put(const K& key, const V& value) {
         std::lock_guard<std::mutex> lock(mutex_);
-
         auto predecessors = find_predecessors(key);
-        auto existing_node = get_node_at_level_zero(predecessors[0], key);
-
-        if (existing_node != nullptr) {
-            update_existing_node(existing_node, value);
+        if (auto* exist = get_node_at_level_zero(predecessors[0], key)) {
+            exist->value_ = value;
         } else {
             insert_new_node(key, value, predecessors);
         }
@@ -63,11 +55,7 @@ class SkipList {
 
     std::optional<V> get(const K& key) {
         std::lock_guard<std::mutex> lock(mutex_);
-
-        auto node = find_node(key);
-        if (node != nullptr) {
-            return node->value_;
-        }
+        if (auto* node = find_node(key)) return node->value_;
         return std::nullopt;
     }
 
@@ -78,169 +66,102 @@ class SkipList {
 
     bool remove(const K& key) {
         std::lock_guard<std::mutex> lock(mutex_);
-
         auto predecessors = find_predecessors(key);
-        auto node_to_delete = get_node_at_level_zero(predecessors[0], key);
+        auto* victim = get_node_at_level_zero(predecessors[0], key);
+        if (!victim) return false;
 
-        if (node_to_delete == nullptr) {
-            return false;
-        }
-
-        delete_node(node_to_delete, predecessors);
+        delete_node(victim, predecessors);
         adjust_max_level();
         return true;
     }
 
-    size_t size() { return element_count_; }
-
+    size_t size() const { return element_count_; }
     bool empty() const { return element_count_ == 0; }
 
    private:
-    Node<K, V>* create_header_node() {
-        return create_node(K{}, V{}, max_level_);
-    }
-
     Node<K, V>* find_node(const K& key) { return traverse_to_level_zero(key); }
 
-    std::vector<Node<K, V>*> find_predecessors(const K& key) {
-        std::vector<Node<K, V>*> predecessors(max_level_ + 1, nullptr);
-        traverse_and_collect_predecessors(key, predecessors);
-        return predecessors;
+    using PredVec = std::vector<Node<K, V>*>;
+    PredVec find_predecessors(const K& key) {
+        PredVec preds(max_level_ + 1, nullptr);
+        traverse_and_collect_predecessors(key, preds);
+        return preds;
     }
 
     Node<K, V>* traverse_to_level_zero(const K& key) {
-        Node<K, V>* current = header_;
-
-        for (int i = current_max_level_; i >= 0; i--) {
-            current = move_forward_in_level(current, i, key);
-        }
-
-        return get_target_node(current, key);
+        Node<K, V>* cur = header_.get();
+        for (int i = current_max_level_; i >= 0; --i)
+            cur = move_forward_in_level(cur, i, key);
+        return get_target_node(cur, key);
     }
 
-    void traverse_and_collect_predecessors(
-        const K& key, std::vector<Node<K, V>*>& predecessors) {
-        Node<K, V>* current = header_;
-
-        for (int i = current_max_level_; i >= 0; i--) {
-            current = move_forward_in_level(current, i, key);
-            predecessors[i] = current;
+    void traverse_and_collect_predecessors(const K& key, PredVec& preds) {
+        Node<K, V>* cur = header_.get();
+        for (int i = current_max_level_; i >= 0; --i) {
+            cur = move_forward_in_level(cur, i, key);
+            preds[i] = cur;
         }
     }
 
-    Node<K, V>* move_forward_in_level(Node<K, V>* current, int level,
-                                      const K& key) {
-        while (current->forward_[level] != nullptr &&
-               current->forward_[level]->key_ < key) {
-            current = current->forward_[level];
+    Node<K, V>* move_forward_in_level(Node<K, V>* cur, int lvl, const K& key) {
+        while (cur->forward_[lvl] && cur->forward_[lvl]->key_ < key)
+            cur = cur->forward_[lvl].get();
+        return cur;
+    }
+
+    Node<K, V>* get_target_node(Node<K, V>* pred, const K& key) {
+        auto* nxt = pred->forward_[0].get();
+        return (nxt && nxt->key_ == key) ? nxt : nullptr;
+    }
+
+    Node<K, V>* get_node_at_level_zero(Node<K, V>* pred, const K& key) {
+        auto* nxt = pred->forward_[0].get();
+        return (nxt && nxt->key_ == key) ? nxt : nullptr;
+    }
+
+    void insert_new_node(const K& key, const V& value, const PredVec& preds) {
+        uint8_t lvl = generate_random_level();
+        PredVec mutable_preds = preds;
+        adjust_max_level_for_insertion(lvl, mutable_preds);
+
+        auto new_node = std::make_shared<Node<K, V>>(key, value, lvl);
+        for (uint8_t i = 0; i <= lvl; ++i) {
+            new_node->forward_[i] = mutable_preds[i]->forward_[i];
+            mutable_preds[i]->forward_[i] = new_node;
         }
-        return current;
+        ++element_count_;
     }
 
-    Node<K, V>* get_target_node(Node<K, V>* predecessor, const K& key) {
-        Node<K, V>* target = predecessor->forward_[0];
-        if (target != nullptr && target->key_ == key) {
-            return target;
+    void delete_node(Node<K, V>* node, const PredVec& preds) {
+        for (uint8_t i = 0; i <= current_max_level_; ++i) {
+            if (preds[i]->forward_[i].get() == node)
+                preds[i]->forward_[i] = node->forward_[i];
         }
-        return nullptr;
-    }
-
-    Node<K, V>* get_node_at_level_zero(Node<K, V>* predecessor, const K& key) {
-        Node<K, V>* node = predecessor->forward_[0];
-        if (node != nullptr && node->key_ == key) {
-            return node;
-        }
-        return nullptr;
-    }
-
-    void update_existing_node(Node<K, V>* node, const V& value) {
-        node->value_ = value;
-    }
-
-    void insert_new_node(const K& key, const V& value,
-                         const std::vector<Node<K, V>*>& predecessors) {
-        uint8_t new_level = generate_random_level();
-        adjust_max_level_for_insertion(
-            new_level, const_cast<std::vector<Node<K, V>*>&>(predecessors));
-
-        Node<K, V>* new_node = create_node(key, value, new_level);
-        insert_node_at_all_levels(new_node, predecessors, new_level);
-
-        element_count_++;
-    }
-
-    uint8_t generate_random_level() {
-        uint8_t level = 0;
-        while (distribution_(gen_) && level < max_level_) {
-            level++;
-        }
-        return level;
-    }
-
-    void adjust_max_level_for_insertion(
-        uint8_t new_level, std::vector<Node<K, V>*>& predecessors) {
-        if (new_level > current_max_level_) {
-            for (uint8_t i = current_max_level_ + 1; i <= new_level; i++) {
-                predecessors[i] = header_;
-            }
-            current_max_level_ = new_level;
-        }
-    }
-
-    Node<K, V>* create_node(const K& key, const V& value, uint8_t level) {
-        return new Node<K, V>(key, value, level);
-    }
-
-    void insert_node_at_all_levels(Node<K, V>* node,
-                                   const std::vector<Node<K, V>*>& predecessors,
-                                   uint8_t level) {
-        for (uint8_t i = 0; i <= level; i++) {
-            node->forward_[i] = predecessors[i]->forward_[i];
-            predecessors[i]->forward_[i] = node;
-        }
-    }
-
-    void delete_node(Node<K, V>* node,
-                     const std::vector<Node<K, V>*>& predecessors) {
-        disconnect_node_from_levels(node, predecessors);
-        delete node;
-        element_count_--;
-    }
-
-    void disconnect_node_from_levels(
-        Node<K, V>* node, const std::vector<Node<K, V>*>& predecessors) {
-        for (uint8_t i = 0; i <= current_max_level_; i++) {
-            if (predecessors[i]->forward_[i] == node) {
-                predecessors[i]->forward_[i] = node->forward_[i];
-            }
-        }
+        --element_count_;
     }
 
     void adjust_max_level() {
-        while (current_max_level_ > 0 &&
-               header_->forward_[current_max_level_] == nullptr) {
-            current_max_level_--;
-        }
+        while (current_max_level_ > 0 && !header_->forward_[current_max_level_])
+            --current_max_level_;
     }
 
-    void clear() {
-        delete_chain_starting_from(header_->forward_[0]);
-        delete header_;
+    uint8_t generate_random_level() {
+        uint8_t lvl = 0;
+        while (distribution_(gen_) && lvl < max_level_) ++lvl;
+        return lvl;
     }
 
-    void delete_chain_starting_from(Node<K, V>* node) {
-        if (node == nullptr) {
-            return;
+    void adjust_max_level_for_insertion(uint8_t lvl, PredVec& preds) {
+        if (lvl > current_max_level_) {
+            for (uint8_t i = current_max_level_ + 1; i <= lvl; ++i)
+                preds[i] = header_.get();
+            current_max_level_ = lvl;
         }
-
-        Node<K, V>* next = node->forward_[0];
-        delete node;
-        delete_chain_starting_from(next);
     }
 
     uint8_t max_level_;
     uint8_t current_max_level_{0};
-    Node<K, V>* header_{nullptr};
+    std::unique_ptr<Node<K, V>> header_;
     size_t element_count_{0};
 
     mutable std::mutex mutex_;
