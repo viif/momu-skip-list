@@ -2,6 +2,7 @@
 #define XSF_SKIP_LIST_H
 
 #include <mutex>
+#include <optional>
 #include <random>
 
 namespace xsf_skip_list {
@@ -49,7 +50,7 @@ class XSFSkipList {
         delete header_;
     }
 
-    int insert_element(K key, V value) {
+    void put(const K& key, const V& value) {
         std::lock_guard<std::mutex> lock(mutex_);
         // 定义一个指针 current，初始化为跳表的头节点
         Node<K, V>* current = header_;
@@ -75,8 +76,6 @@ class XSFSkipList {
         if (current != nullptr && current->key_ == key) {
             // 键已存在，更新节点的值
             current->value_ = value;
-            // 返回 1，表示更新操作
-            return 1;
         } else {
             // 键不存在，插入节点
             // 通过随机函数决定新节点的层级高度
@@ -102,12 +101,10 @@ class XSFSkipList {
             }
             // 增加跳表的元素计数
             element_count_++;
-            // 返回 0，表示插入操作
-            return 0;
         }
     }
 
-    bool search_element(K key, V& value) {
+    std::optional<V> get(const K& key) {
         // 定义一个指针 current，初始化为跳表的头节点
         Node<K, V>* current = header_;
 
@@ -126,15 +123,12 @@ class XSFSkipList {
         // 检查当前层（最底层）的下一个节点的键值是否为待查找的键值
         current = current->forward_[0];
         if (current != nullptr && current->key_ == key) {
-            // 如果找到匹配的键值，返回 true
-            value = current->value_;
-            return true;
+            return current->value_;
         }
-        // 如果没有找到匹配的键值，返回 false
-        return false;
+        return std::nullopt;
     }
 
-    void delete_element(K key) {
+    void remove(const K& key) {
         std::lock_guard<std::mutex> lock(mutex_);
         // 定义一个指针 current，初始化为跳表的头节点
         Node<K, V>* current = header_;
@@ -174,7 +168,7 @@ class XSFSkipList {
         }
     }
 
-    int size() { return element_count_; }
+    size_t size() { return element_count_; }
 
    private:
     int get_random_level() {
@@ -203,10 +197,10 @@ class XSFSkipList {
         delete node;
     }
 
-    int max_level_;
-    int skip_list_level_;  // 跳表当前最高层数
+    uint8_t max_level_;
+    uint8_t skip_list_level_;  // 跳表当前最高层数
     Node<K, V>* header_;
-    int element_count_;
+    size_t element_count_;
 
     std::mutex mutex_;
     std::mt19937 gen_;
