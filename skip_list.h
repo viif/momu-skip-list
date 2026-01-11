@@ -1,5 +1,5 @@
-#ifndef XSF_SKIP_LIST_H
-#define XSF_SKIP_LIST_H
+#ifndef MOMU_SKIP_LIST_H
+#define MOMU_SKIP_LIST_H
 
 #include <mutex>
 #include <optional>
@@ -28,9 +28,9 @@ struct Node {
 };
 
 template <typename K, typename V>
-class MomuSkipList {
+class SkipList {
    public:
-    MomuSkipList(uint8_t max_level, unsigned int seed = std::random_device{}())
+    SkipList(uint8_t max_level, unsigned int seed = std::random_device{}())
         : max_level_(max_level),
           skip_list_level_(0),
           element_count_(0),
@@ -42,7 +42,7 @@ class MomuSkipList {
         header_ = new Node<K, V>(k, v, max_level_);
     }
 
-    ~MomuSkipList() {
+    ~SkipList() {
         // 递归删除跳表链条
         if (header_->forward_[0] != nullptr) {
             clear(header_->forward_[0]);
@@ -212,4 +212,4 @@ class MomuSkipList {
 
 }  // namespace momu
 
-#endif  // XSF_SKIP_LIST_H
+#endif  // MOMU_SKIP_LIST_H
