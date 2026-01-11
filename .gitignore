@@ -1,6 +1,3 @@
-# 忽略所有的.png文件
-*.png
-
 # Prerequisites
 *.d
 
